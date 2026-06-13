@@ -1,30 +1,34 @@
 /**
- * storage.js — localStorage Manager
- * Stores chats, scroll positions, theme preference.
- * Handles QuotaExceededError gracefully.
- * WhatsApp Export Viewer
+ * storage.js — Storage Manager
+ *
+ * Chat metadata (name, participants, counts …) → localStorage  (tiny, synchronous, fast)
+ * Message arrays                               → IndexedDB     (no ~5 MB quota limit)
+ * Scroll positions, theme, mode               → localStorage
+ *
+ * All message-touching operations are async (Promise-based).
  */
 
 'use strict';
 
+import { MediaStorage } from './mediaStorage';
+
 export const Storage = (() => {
 
   const KEYS = {
-    CHAT_LIST:  'chatview_chats',       // Array of chat metadata
-    CHAT_DATA:  id => `chatview_data_${id}`,
-    SCROLL:     id => `chatview_scroll_${id}`,
-    ACTIVE:     'chatview_active',
-    THEME:      'chatview_theme',
-    MODE:       'chatview_mode',
+    CHAT_LIST:   'chatview_chats',
+    SCROLL:      id => `chatview_scroll_${id}`,
+    ACTIVE:      'chatview_active',
+    THEME:       'chatview_theme',
+    MODE:        'chatview_mode',
+    LEGACY_DATA: id => `chatview_data_${id}`, // pre-migration localStorage key
   };
 
-  // ── Internal helpers ──────────────────────────────────────────────────────
+  // ── localStorage helpers ──────────────────────────────────────────────────
 
   function _get(key) {
     try {
       const raw = localStorage.getItem(key);
-      if (raw === null) return null;
-      return JSON.parse(raw);
+      return raw === null ? null : JSON.parse(raw);
     } catch {
       return null;
     }
@@ -43,178 +47,144 @@ export const Storage = (() => {
   }
 
   function _remove(key) {
-    try { localStorage.removeItem(key); } catch {}
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
   }
 
-  // ── Chat List ─────────────────────────────────────────────────────────────
+  // ── Chat list (metadata only — always tiny) ───────────────────────────────
 
-  /**
-   * Returns array of chat metadata objects.
-   * @returns {ChatMeta[]}
-   */
   function listChats() {
     return _get(KEYS.CHAT_LIST) || [];
   }
 
-  /**
-   * Save chat metadata to the chat list.
-   * @param {ChatMeta} meta
-   */
   function _saveMeta(meta) {
     const list = listChats();
-    const idx = list.findIndex(c => c.id === meta.id);
-    if (idx >= 0) {
-      list[idx] = meta;
-    } else {
-      list.unshift(meta);
-    }
+    const idx  = list.findIndex(c => c.id === meta.id);
+    if (idx >= 0) list[idx] = meta; else list.unshift(meta);
     _set(KEYS.CHAT_LIST, list);
   }
 
-  // ── Chat Data ─────────────────────────────────────────────────────────────
+  // ── Chat data (messages → IndexedDB) ─────────────────────────────────────
 
   /**
-   * Save a full chat (metadata + messages) to localStorage.
-   * Returns { ok, reason, storedCount } - storedCount may be less than messages.length if quota hit.
-   *
-   * Strategy: Try to store all messages. If QuotaExceededError, keep trying without storing data
-   * (metadata only saved) and report back.
-   *
-   * @param {Chat} chat
-   * @returns {{ ok: boolean, reason?: string, storedCount: number, quota: boolean }}
+   * Save a full chat. Metadata → localStorage, messages → IndexedDB.
+   * @param {object} chat
+   * @returns {Promise<{ ok: boolean, reason?: string }>}
    */
-  function saveChat(chat) {
+  async function saveChat(chat) {
     const { messages, ...meta } = chat;
-
-    // Always save metadata list
     _saveMeta({ ...meta, messageCount: messages.length });
-
-    // Try to store full message array
-    const result = _set(KEYS.CHAT_DATA(chat.id), messages);
-
-    if (result.ok) {
-      return { ok: true, storedCount: messages.length, quota: false };
+    try {
+      await MediaStorage.saveMessages(chat.id, messages);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, reason: e?.message ?? 'idb error' };
     }
-
-    // Quota hit — try saving without messages (metadata only, sessions only)
-    // The user said "store until localStorage is full" so we try our best.
-    // Report back that storage failed.
-    return { ok: false, storedCount: 0, quota: true, reason: result.reason };
   }
 
   /**
-   * Load full chat data (messages + meta).
+   * Load messages for a chat from IndexedDB, with automatic one-time migration
+   * from the old localStorage key for users upgrading from previous versions.
    * @param {string} id
-   * @returns {{ meta: ChatMeta, messages: Message[] } | null}
+   * @returns {Promise<any[]>}
    */
-  function loadChat(id) {
-    const metas = listChats();
-    const meta = metas.find(c => c.id === id);
-    if (!meta) return null;
+  async function loadMessages(id) {
+    const msgs = await MediaStorage.loadMessages(id);
+    if (msgs.length > 0) return msgs;
 
-    const messages = _get(KEYS.CHAT_DATA(id)) || [];
+    // Legacy: data was stored under chatview_data_<id> in localStorage
+    const legacy = _get(KEYS.LEGACY_DATA(id));
+    if (Array.isArray(legacy) && legacy.length > 0) {
+      // Migrate silently — fire-and-forget; data is already in `legacy`
+      MediaStorage.saveMessages(id, legacy)
+        .then(() => _remove(KEYS.LEGACY_DATA(id)))
+        .catch(() => { /* migration is best-effort */ });
+      return legacy;
+    }
+
+    return [];
+  }
+
+  /**
+   * Load full chat (meta + messages).
+   * @param {string} id
+   * @returns {Promise<{ meta: object, messages: any[] } | null>}
+   */
+  async function loadChat(id) {
+    const metas = listChats();
+    const meta  = metas.find(c => c.id === id);
+    if (!meta) return null;
+    const messages = await loadMessages(id);
     return { meta, messages };
   }
 
   /**
-   * Delete a chat and its associated data.
+   * Delete a chat — removes metadata, scroll position, messages (IDB + legacy).
    * @param {string} id
+   * @returns {Promise<void>}
    */
-  function deleteChat(id) {
+  async function deleteChat(id) {
     const list = listChats().filter(c => c.id !== id);
     _set(KEYS.CHAT_LIST, list);
-    _remove(KEYS.CHAT_DATA(id));
     _remove(KEYS.SCROLL(id));
+    _remove(KEYS.LEGACY_DATA(id));
+    await MediaStorage.deleteMessages(id);
   }
 
-  // ── Scroll Position ───────────────────────────────────────────────────────
+  // ── Scroll position ───────────────────────────────────────────────────────
 
-  /**
-   * Save scroll state for a chat.
-   * @param {string} id
-   * @param {{ fromIndex: number, scrollTop: number }} state
-   */
   function saveScroll(id, state) {
-    try {
-      localStorage.setItem(KEYS.SCROLL(id), JSON.stringify(state));
-    } catch {}
+    try { localStorage.setItem(KEYS.SCROLL(id), JSON.stringify(state)); } catch { /* ignore */ }
   }
 
-  /**
-   * Load scroll state.
-   * @param {string} id
-   * @returns {{ fromIndex: number, scrollTop: number } | null}
-   */
   function loadScroll(id) {
     try {
       const raw = localStorage.getItem(KEYS.SCROLL(id));
       if (raw === null) return null;
       const parsed = JSON.parse(raw);
       // Handle legacy plain-number saves
-      if (typeof parsed === 'number') return { fromIndex: null, scrollTop: parsed };
-      return parsed;
+      return typeof parsed === 'number' ? { fromIndex: null, scrollTop: parsed } : parsed;
     } catch {
       return null;
     }
   }
 
-  // ── Active Chat ───────────────────────────────────────────────────────────
+  // ── Active chat ───────────────────────────────────────────────────────────
 
   function saveActive(id) { _set(KEYS.ACTIVE, id); }
   function loadActive()   { return _get(KEYS.ACTIVE); }
   function clearActive()  { _remove(KEYS.ACTIVE); }
 
-  // ── Theme ─────────────────────────────────────────────────────────────────
+  // ── Theme / Mode ──────────────────────────────────────────────────────────
 
   function saveTheme(name) { _set(KEYS.THEME, name); }
   function loadTheme()     { return _get(KEYS.THEME) || 'whatsapp'; }
-
-  // ── Mode ──────────────────────────────────────────────────────────────────
 
   function saveMode(mode) { _set(KEYS.MODE, mode); }
   function loadMode()     { return _get(KEYS.MODE) || null; }
 
   // ── Utilities ─────────────────────────────────────────────────────────────
 
-  /**
-   * Generate a short unique ID.
-   */
   function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
-  /**
-   * Estimate available localStorage space in bytes.
-   * Not perfectly accurate but gives a rough sense.
-   */
   function estimateFreeSpace() {
     let used = 0;
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       const val = localStorage.getItem(key) || '';
-      used += (key.length + val.length) * 2; // UTF-16 = 2 bytes per char
+      used += (key.length + val.length) * 2; // UTF-16 → 2 bytes per char
     }
-    const total = 5 * 1024 * 1024; // 5MB typical limit
-    return Math.max(0, total - used);
+    return Math.max(0, 5 * 1024 * 1024 - used);
   }
 
-  // Public API
   return {
-    listChats,
-    saveChat,
-    loadChat,
-    deleteChat,
-    saveScroll,
-    loadScroll,
-    saveActive,
-    loadActive,
-    clearActive,
-    saveTheme,
-    loadTheme,
-    saveMode,
-    loadMode,
-    generateId,
-    estimateFreeSpace,
+    listChats, saveChat, loadChat, loadMessages, deleteChat,
+    saveScroll, loadScroll,
+    saveActive, loadActive, clearActive,
+    saveTheme, loadTheme,
+    saveMode, loadMode,
+    generateId, estimateFreeSpace,
   };
 
 })();
