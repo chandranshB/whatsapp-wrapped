@@ -1,12 +1,16 @@
 export function generateWrappedStats(messages, myName, customNames = {}) {
   if (!messages || messages.length === 0) return null;
 
-  const validMsgs = messages.map(m => {
-    if (m.type !== 'message') return null;
+  const validMsgs = [];
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m.type !== 'message') continue;
     const dt = new Date(m.timestamp);
-    if (isNaN(dt)) return null;
-    return { ...m, timestamp: dt };
-  }).filter(Boolean);
+    if (isNaN(dt)) continue;
+    // Keep only the fields we actually read below — avoids a full shallow
+    // copy (...m) of every message, which doubles memory on huge chats.
+    validMsgs.push({ text: m.text, sender: m.sender, mediaType: m.mediaType, timestamp: dt });
+  }
 
   if (validMsgs.length === 0) return null;
 
@@ -32,8 +36,11 @@ export function generateWrappedStats(messages, myName, customNames = {}) {
   me = me.trim();
   them = them.trim();
 
-  // Sort messages chronologically just in case
-  const sortedMsgs = [...validMsgs].sort((a, b) => a.timestamp - b.timestamp);
+  // Sort messages chronologically just in case.
+  // validMsgs is our own freshly-built array, so sort it in place instead of
+  // allocating another full copy ([...validMsgs].sort()).
+  validMsgs.sort((a, b) => a.timestamp - b.timestamp);
+  const sortedMsgs = validMsgs;
 
   const firstDate = sortedMsgs[0].timestamp;
   const lastDate = sortedMsgs[sortedMsgs.length - 1].timestamp;

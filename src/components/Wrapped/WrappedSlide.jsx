@@ -119,9 +119,11 @@ export default function WrappedSlide({ slideIndex, stats }) {
               <Calendar className="large-icon" />
             </motion.div>
             <motion.div className="busiest-date" variants={itemVariants}>
-              {busiestDay.date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+              {busiestDay?.date
+                ? busiestDay.date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+                : '—'}
             </motion.div>
-            <motion.p className="slide-text mt-4" variants={itemVariants}>You exchanged <strong>{busiestDay.count.toLocaleString()}</strong> messages that day alone.</motion.p>
+            <motion.p className="slide-text mt-4" variants={itemVariants}>You exchanged <strong>{(busiestDay?.count ?? 0).toLocaleString()}</strong> messages that day alone.</motion.p>
           </motion.div>
         );
 
@@ -250,25 +252,30 @@ export default function WrappedSlide({ slideIndex, stats }) {
         );
 
       case 9:
-        if (longestGap.days < 3) {
+        if ((longestGap?.days ?? 0) < 3) {
           return (
             <motion.div className="slide-content quiet-slide" variants={slideVariants} initial="hidden" animate="visible" exit="exit" key="slide-9a">
               <motion.h2 className="slide-title" variants={itemVariants}>You basically never stopped talking.</motion.h2>
               <motion.div variants={scaleVariants} className="large-icon-container mt-8">
                 <Heart className="large-icon" />
               </motion.div>
-              <motion.p className="slide-text mt-8" variants={itemVariants}>Your longest break from <strong>{them}</strong> was only {longestGap.days} days.</motion.p>
+              <motion.p className="slide-text mt-8" variants={itemVariants}>Your longest break from <strong>{them}</strong> was only {longestGap?.days ?? 0} days.</motion.p>
             </motion.div>
           );
         }
         return (
           <motion.div className="slide-content quiet-slide" variants={slideVariants} initial="hidden" animate="visible" exit="exit" key="slide-9b">
             <motion.h2 className="slide-title" variants={itemVariants}>There were quiet moments, too.</motion.h2>
-            <motion.p className="slide-text mt-8" variants={itemVariants}>In {longestGap.start?.toLocaleDateString(undefined, { month: 'long' })}, you and <strong>{them}</strong> went</motion.p>
-            <motion.div className="big-number quiet-number" variants={scaleVariants}>{longestGap.days}</motion.div>
+            <motion.p className="slide-text mt-8" variants={itemVariants}>
+              {longestGap?.start
+                ? `In ${longestGap.start.toLocaleDateString(undefined, { month: 'long' })}, you and `
+                : 'You and '}
+              <strong>{them}</strong> went
+            </motion.p>
+            <motion.div className="big-number quiet-number" variants={scaleVariants}>{longestGap?.days ?? 0}</motion.div>
             <motion.p className="slide-text" variants={itemVariants}>days without a single message.</motion.p>
             <motion.div className="slide-text mt-8" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }} variants={itemVariants}>
-              <span>But <strong>{longestGap.ender || 'you'}</strong> always came back.</span>
+              <span>But <strong>{longestGap?.ender || 'you'}</strong> always came back.</span>
               <Heart size={28} style={{ flexShrink: 0 }} />
             </motion.div>
           </motion.div>
