@@ -234,34 +234,36 @@ export const WhatsAppParser = (() => {
       day = a; month = b; year = c;
     }
 
-    // Parse time
-    let hours = 0, minutes = 0, seconds = 0;
+    // Parse time — one-pass AM/PM resolution to avoid double-correction
     const timeParts = timeStr.trim().split(/[:\s]/);
-    hours = parseInt(timeParts[0], 10) || 0;
-    minutes = parseInt(timeParts[1], 10) || 0;
+    let hours   = parseInt(timeParts[0], 10) || 0;
+    let minutes = parseInt(timeParts[1], 10) || 0; // eslint-disable-line no-unused-vars
+    let seconds = 0;
+    let ampm    = ''; // 'am' | 'pm' | ''
 
-    // Seconds
     if (timeParts.length >= 3) {
-      const secPart = timeParts[2];
-      const isPm = /pm/i.test(secPart);
-      const isAm = /am/i.test(secPart);
-      seconds = parseInt(secPart, 10) || 0;
-      // Handle AM/PM embedded in seconds part
-      if (isPm && hours < 12) hours += 12;
-      else if (isAm && hours === 12) hours = 0;
+      const third = timeParts[2];
+      seconds = parseInt(third, 10) || 0;
+      if (/pm/i.test(third)) ampm = 'pm';
+      else if (/am/i.test(third)) ampm = 'am';
     }
 
-    // Handle trailing AM/PM
-    if (timeParts.length >= 3) {
+    // Trailing AM/PM token after seconds (e.g. ["1","30","45","PM"])
+    if (timeParts.length >= 4) {
       const last = timeParts[timeParts.length - 1];
-      if (/^pm$/i.test(last) && hours < 12) hours += 12;
-      else if (/^am$/i.test(last) && hours === 12) hours = 0;
-    } else if (timeParts.length === 2) {
-      // AM/PM embedded in minutes
-      const minPart = timeParts[1];
-      if (/pm/i.test(minPart) && hours < 12) hours += 12;
-      else if (/am/i.test(minPart) && hours === 12) hours = 0;
+      if (/^pm$/i.test(last)) ampm = 'pm';
+      else if (/^am$/i.test(last)) ampm = 'am';
     }
+
+    // AM/PM embedded in minutes when there are only 2 tokens (e.g. "1:30PM")
+    if (timeParts.length === 2) {
+      if (/pm/i.test(timeParts[1])) ampm = 'pm';
+      else if (/am/i.test(timeParts[1])) ampm = 'am';
+    }
+
+    // Apply AM/PM adjustment exactly once
+    if (ampm === 'pm' && hours < 12) hours += 12;
+    else if (ampm === 'am' && hours === 12) hours = 0;
 
     // month is 1-indexed in our logic, but Date() uses 0-indexed
     return new Date(year, month - 1, day, hours, minutes, seconds);
