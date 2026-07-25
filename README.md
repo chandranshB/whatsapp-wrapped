@@ -1,4 +1,4 @@
-# WhatsApp Chat Reader
+# WhatsApp Wrapped
 
 A browser-based viewer for WhatsApp chat exports. Everything runs locally — no server, no uploads, no tracking.
 
@@ -17,7 +17,7 @@ A browser-based viewer for WhatsApp chat exports. Everything runs locally — no
 Requires Node.js 18+.
 
 ```bash
-git clone https://github.com/chandranshB/WhatsApp-Importer.git
+git clone https://github.com/chandranshB/whatsapp-wrapped.git
 cd "WhatsApp Reader"
 npm install
 npm run dev
