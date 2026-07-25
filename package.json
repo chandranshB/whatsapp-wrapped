@@ -1,8 +1,9 @@
 {
-  "name": "temp_vite",
+  "name": "whatsapp-chat-reader",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
