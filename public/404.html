@@ -1,38 +1,39 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <meta charset="utf-8">
-    <title>Redirecting...</title>
-    <script type="text/javascript">
-      // GitHub Pages SPA redirect trick
-      // Converts a URL like /repo-name/wrapped to /repo-name/#/wrapped
-      var pathSegmentsToKeep = 1; // 1 for GitHub Pages e.g., /repo-name/
-      
-      var l = window.location;
-      var newUrl = l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-        l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?p=/' +
-        l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
-        (l.search ? '&q=' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-        l.hash;
-        
-      // For this app, simply converting to a hash route works perfectly 
-      // since App.jsx supports #/wrapped
-      var appPath = l.pathname.split('/').pop();
-      if (appPath === 'wrapped') {
-        window.location.replace(
-          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-          l.pathname.replace('/wrapped', '/#/wrapped') + l.search
-        );
-      } else {
-        // Fallback: just go to the home page of the repo
-        window.location.replace(
-          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-          l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/'
-        );
-      }
+    <meta charset="utf-8" />
+    <title>WhatsApp Wrapped</title>
+    <!--
+      GitHub Pages 404 → SPA redirect.
+
+      GitHub Pages serves this file for every URL that doesn't map to a real
+      file. Since the app uses hash-based routing (#/wrapped) there are no
+      real sub-paths — any request for a non-existent path (e.g. a browser
+      refresh on a shared link) just needs to land back at the app root and
+      let the hash router take over.
+
+      Strategy: grab the full original URL, convert any path segment after
+      the repo base into a hash fragment, then redirect. This preserves deep
+      links shared without a hash (e.g. /whatsapp-wrapped/wrapped → /#/wrapped).
+    -->
+    <script>
+      (function () {
+        var BASE = '/whatsapp-wrapped';
+        var loc  = window.location;
+
+        // Strip the base prefix to get the sub-path (e.g. "/wrapped" or "")
+        var sub = loc.pathname.replace(BASE, '').replace(/^\//, '');
+
+        // Build the redirect: always land on the base, carrying the sub-path
+        // as a hash fragment so App.jsx's hashchange listener picks it up.
+        var hash = sub ? '#/' + sub : '';
+        var dest = loc.protocol + '//' + loc.hostname +
+                   (loc.port ? ':' + loc.port : '') +
+                   BASE + '/' + hash + loc.search;
+
+        window.location.replace(dest);
+      })();
     </script>
   </head>
-  <body>
-    Redirecting...
-  </body>
+  <body></body>
 </html>
