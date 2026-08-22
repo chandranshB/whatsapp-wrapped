@@ -12,18 +12,25 @@
     <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet" />
 
     <!-- Open Graph / Facebook -->
+    <!-- og:image must be an absolute URL — crawlers do not resolve relative paths.    -->
+    <!-- The image lives in public/assets/ so Vite copies it verbatim to dist/assets/ -->
+    <!-- and it is served at the path below on GitHub Pages.                           -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://chandranshb.github.io/WhatsApp-Importer/wrapped" />
+    <meta property="og:url" content="https://chandranshb.github.io/WhatsApp-Importer/" />
     <meta property="og:title" content="WhatsApp Wrapped — Relive Your Chats" />
     <meta property="og:description" content="Unwrap your WhatsApp story! Relive your year in chats, discover your top emojis, and uncover the hidden stats of your conversations." />
-    <meta property="og:image" content="https://i.pinimg.com/1200x/c8/52/ff/c852ffd50eadfab67ddde41339e49e10.jpg" />
+    <meta property="og:image" content="https://chandranshb.github.io/WhatsApp-Importer/assets/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:site_name" content="WhatsApp Export Viewer" />
 
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://chandranshb.github.io/WhatsApp-Importer/wrapped" />
-    <meta property="twitter:title" content="WhatsApp Wrapped — Relive Your Chats" />
-    <meta property="twitter:description" content="Unwrap your WhatsApp story! Relive your year in chats, discover your top emojis, and uncover the hidden stats of your conversations." />
-    <meta property="twitter:image" content="https://i.pinimg.com/1200x/c8/52/ff/c852ffd50eadfab67ddde41339e49e10.jpg" />
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://chandranshb.github.io/WhatsApp-Importer/" />
+    <meta name="twitter:title" content="WhatsApp Wrapped — Relive Your Chats" />
+    <meta name="twitter:description" content="Unwrap your WhatsApp story! Relive your year in chats, discover your top emojis, and uncover the hidden stats of your conversations." />
+    <meta name="twitter:image" content="https://chandranshb.github.io/WhatsApp-Importer/assets/og-image.jpg" />
   </head>
   <body>
     <div id="root"></div>
